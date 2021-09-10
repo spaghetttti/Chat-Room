@@ -1,24 +1,145 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useRef, useState } from "react";
+import "./App.css";
+
+import firebase from "firebase/app";
+import "firebase/firestore";
+import "firebase/auth";
+import "firebase/analytics";
+
+import { useAuthState } from "react-firebase-hooks/auth";
+import { useCollectionData } from "react-firebase-hooks/firestore";
+
+firebase.initializeApp({
+  apiKey: "AIzaSyCCexzzcgPkcS_Z-WNdIEyZA3nI7Uex8s4",
+  authDomain: "chat-room-f89f3.firebaseapp.com",
+  projectId: "chat-room-f89f3",
+  storageBucket: "chat-room-f89f3.appspot.com",
+  messagingSenderId: "912817704759",
+  appId: "1:912817704759:web:a9b76da1963ca09 c4e14b2",
+  measurementId: "G-5M4V46Z70S",
+});
+
+const auth = firebase.auth();
+const firestore = firebase.firestore();
+const analytics = firebase.analytics();
 
 function App() {
+  const [user] = useAuthState(auth);
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+      <header>
+        <h1>💬</h1>
+        <SignOut />
       </header>
+
+      <section>{user ? <ChatRoom /> : <SignIn />}</section>
     </div>
+  );
+}
+
+function SignIn() {
+  const signInWithGoogle = () => {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider);
+  };
+
+  return (
+    <div className="welcome">
+      <h1>Welcome to Chat Room</h1>
+      <button className="sign-in" onClick={signInWithGoogle}>
+        Sign in with Google
+      </button>
+      <p>
+        Please do not violate the community guidelines or you will be banned,
+        thank you
+      </p>
+    </div>
+  );
+}
+
+function SignOut() {
+  return (
+    auth.currentUser && (
+      <button className="sign-out" onClick={() => auth.signOut()}>
+        Sign Out
+      </button>
+    )
+  );
+}
+
+function ChatRoom() {
+  const dummy = useRef();
+  const messagesRef = firestore.collection("messages");
+  const query = messagesRef.orderBy("createdAt").limit(25);
+
+  const [messages] = useCollectionData(query, { idField: "id" });
+
+  const [formValue, setFormValue] = useState("");
+
+  const sendMessage = async (e) => {
+    e.preventDefault();
+
+    let name = auth.currentUser.displayName;
+    const { uid, photoURL } = auth.currentUser;
+    await messagesRef.add({
+      text: formValue,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      uid,
+      photoURL,
+      name,
+    });
+
+    setFormValue("");
+    dummy.current.scrollIntoView({ behavior: "smooth" });
+
+    console.log("shheshh:", messages);
+  };
+
+  return (
+    <>
+      <main>
+        {messages &&
+          messages.map((msg) => <ChatMessage key={msg.id} message={msg} />)}
+
+        <span ref={dummy}></span>
+      </main>
+
+      <form onSubmit={sendMessage}>
+        <input
+          value={formValue}
+          onChange={(e) => setFormValue(e.target.value)}
+          placeholder="Type your message here..."
+        />
+
+        <button className='sign-in' type="submit" disabled={!formValue}>
+          Send
+        </button>
+      </form>
+    </>
+  );
+}
+
+function ChatMessage(props) {
+  const { text, uid, photoURL, name } = props.message;
+  console.log("shhesh", props.message);
+  const messageClass = uid === auth.currentUser.uid ? "sent" : "received";
+
+  return (
+    <>
+      <div className={`message ${messageClass}`}>
+        <div className="name">{name}</div>
+        <div className="img-txt">
+          <img
+            src={
+              photoURL ||
+              "https://api.adorable.io/avatars/23/abott@adorable.png"
+            }
+          />
+          <p>{text}</p>
+        </div>
+      </div>
+    </>
   );
 }
 
